@@ -1,25 +1,4 @@
-// This file is part of www.nand2tetris.org
-// and the book "The Elements of Computing Systems"
-// by Nisan and Schocken, MIT Press.
-// File name: projects/5/CPU.hdl
-/**
- * The Hack Central Processing unit (CPU).
- * Parses the binary code in the instruction input and executes it according to the
- * Hack machine language specification. In the case of a C-instruction, computes the
- * function specified by the instruction. If the instruction specifies to read a memory
- * value, the inM input is expected to contain this value. If the instruction specifies
- * to write a value to the memory, sets the outM output to this value, sets the addressM
- * output to the target address, and asserts the writeM output (when writeM = 0, any
- * value may appear in outM).
- * If the reset input is 0, computes the address of the next instruction and sets the
- * pc output to that value. If the reset input is 1, sets pc to 0.
- * Note: The outM and writeM outputs are combinational: they are affected by the
- * instruction's execution during the current cycle. The addressM and pc outputs are
- * clocked: although they are affected by the instruction's execution, they commit to
- * their new values only in the next cycle.
- */
 CHIP CPU {
-
     IN  inM[16],         // M value input  (M = contents of RAM[A])
         instruction[16], // Instruction for execution
         reset;           // Signals whether to re-start the current
@@ -32,5 +11,60 @@ CHIP CPU {
         pc[15];          // address of next instruction
 
     PARTS:
-	//// Replace this comment with your code.
+    // instruction[15]: A命令（0）かC命令（1）
+    // instruction[12]: a-bit: ALUの入力がAレジスタ（0）かMレジスタ（1）
+    // instruction[11..6]: c-bits: ALUの制御ビット(zx, nx, zy, ny, f, no)
+    // instruction[5]: d1 (出力をAレジスタに保存するか否か)
+    // instruction[4]: d2 (出力をDレジスタに保存するか否か)
+    // instruction[3]: d3 (出力をMレジスタに保存するか否か)
+    // instruction[2]: j1 (出力が負ならばjumpする)
+    // instruction[1]: j2 (出力が零ならばjumpする)
+    // instruction[0]: j3 (出力が正ならばjumpする)
+
+    // A/C命令の判定
+    Not(in=instruction[15], out=isAInstruction); // A命令か否か
+    And(a=true, b=instruction[15], out=isCInstruction); // C命令か否か
+
+    // Aレジスタのロード条件
+    And(a=isCInstruction, b=instruction[5], out=loadAFromALU); // C命令かつdest[A]が1
+    Or(a=isAInstruction, b=loadAFromALU, out=loadA); // A命令または、C命令かつdest[A]が1の場合、ロードを行う
+
+    // Aレジスタへの入力 (A命令なら命令値、C命令ならALU結果をAレジスタに入力)
+    Mux16(a=instruction, b=ALUoutput, sel=isCInstruction, out=ARegisterInput);
+    ARegister(in=ARegisterInput, load=loadA, out=AValue, out[0..14]=addressM);
+
+    // Dレジスタのロード条件
+    And(a=isCInstruction, b=instruction[4], out=loadD); // C命令でdest[D]が1
+    DRegister(in=ALUoutput, load=loadD, out=DValue);
+
+    // ALUの入力選択 (AValue or inM)
+    Mux16(a=AValue, b=inM, sel=instruction[12], out=ALUInput);
+
+    // ALU
+    ALU(x=DValue, y=ALUInput,
+        zx=instruction[11], nx=instruction[10],
+        zy=instruction[9], ny=instruction[8],
+        f=instruction[7], no=instruction[6],
+        out=ALUoutput, out=outM, zr=zr, ng=ng);
+
+    // メモリに書き込むか否か
+    And(a=isCInstruction, b=instruction[3], out=writeM); // C命令でdest[M]が1
+
+    // ジャンプの判定
+    // ALUの出力が正か否か
+    Or(a=zr, b=ng, out=isZeroOrNeg);
+    Not(in=isZeroOrNeg, out=isPos);
+
+    And(a=instruction[2], b=ng, out=condJLT); 
+    And(a=instruction[1], b=zr, out=condJEQ); 
+    And(a=instruction[0], b=isPos, out=condJGT);
+
+    Or(a=condJLT, b=condJEQ, out=c1);
+    Or(a=c1, b=condJGT, out=c2);
+
+    // PCのロード条件 (C命令であり、かつジャンプ条件が満たされた場合)
+    And(a=isCInstruction, b=c2, out=loadPC);
+
+    // PC (Program Counter)
+    PC(in=AValue, load=loadPC, inc=true, reset=reset, out[0..14]=pc);
 }
