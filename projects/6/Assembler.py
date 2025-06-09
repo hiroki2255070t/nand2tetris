@@ -32,8 +32,6 @@ class Assembler:
         while self.parser.hasMoreLines():
             self.parser.advance()
             binary_instruction  = ""
-            print("now = ", self.parser.current_instruction_index)
-            print("current = ", self.parser.current_instruction)
             if (self.parser.instructionType() == A_INSTRUCTION):
                 # シンボルが数字の場合
                 if (self.parser.symbol().isdigit()):
@@ -47,14 +45,13 @@ class Assembler:
                 continue
             elif (self.parser.instructionType() == C_INSTRUCTION):
                 binary_instruction = "111" + self.code.comp(self.parser.comp()) + self.code.dest(self.parser.dest()) + self.code.jump(self.parser.jump())
-            print("binary = ", binary_instruction)
             self.binary_code += binary_instruction + "\n"
 
 
     def assemble(self, target_filepath):
         self.first_pass()
         self.second_pass(target_filepath)
-        print(self.symbol_table.symbol_table)
+        
         # ファイルへの書き込み
         try:
             with open(target_filepath, 'w') as file:
