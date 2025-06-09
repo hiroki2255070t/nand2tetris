@@ -36,12 +36,12 @@ class Parser:
             return False
         
         if (self.hasMoreLines()):
-            self.current_instruction = self.assembly_program[self.current_instruction_index]
+            self.current_instruction = self.assembly_program[self.current_instruction_index].strip()
             while is_blank_or_comment(self.current_instruction):
                 self.current_instruction_index += 1
                 if (not(self.hasMoreLines())):
                     self.current_instruction_index = None
-                self.current_instruction = self.assembly_program[self.current_instruction_index]
+                self.current_instruction = self.assembly_program[self.current_instruction_index].strip()
             self.current_instruction_index += 1
 
 
